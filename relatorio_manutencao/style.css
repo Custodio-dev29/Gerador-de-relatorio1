@@ -130,7 +130,7 @@ input[type="file"] {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 60px;
+    width: 64px;
 }
 
 .thumbnail-caption {
@@ -278,8 +278,8 @@ button {
 
 .service-card-actions {
     display: flex;
-    gap: 10px;
-    margin-top: 15px;
+    gap: 8px;
+    margin: 0;
 }
 
 .btn-edit, .btn-delete {
@@ -304,9 +304,9 @@ button {
 }
 
 .services-list {
-    margin-top: 10px;
+    margin-top: 20px;
     border-top: 3px solid #767070;
-    padding-top: 10px;
+    padding-top: 16px;
 }
 
 .services-list h2 {
@@ -316,32 +316,50 @@ button {
 }
 
 .service-card {
-    background: #f8f9fa;
+    background: #ffffff;
+    border: 1px solid #e6e9f0;
     border-left: 4px solid #667eea;
-    padding: 15px;
-    margin-bottom: 15px;
-    border-radius: 5px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.service-card h3 {
-    color: #667eea;
-    margin-bottom: 8px;
+.service-card:hover {
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+}
+
+.service-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background: #f7f8fc;
+    border-bottom: 1px solid #eef0f6;
+}
+
+.service-card-header h3 {
+    margin: 0;
     font-size: 16px;
-}
-
-.service-card p {
-    color: #666;
-    font-size: 13px;
-    line-height: 1.6;
-    margin-bottom: 5px;
+    font-weight: 700;
+    color: #2d3436;
+    line-height: 1.35;
+    word-break: break-word;
 }
 
 .priority-text {
-    font-weight: bold;
-    padding: 2px 6px;
-    border-radius: 4px;
-    color: white;
-    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: #ffffff;
+    background-color: #b2bec3;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
 }
 
 /* Cores para as prioridades */
@@ -353,15 +371,52 @@ button {
 .priority-media .priority-text { background-color: #f39c12; }
 .priority-baixa .priority-text { background-color: #3498db; }
 
-.service-card.priority-urgente h3 { color: #e74c3c; }
-.service-card.priority-media h3 { color: #f39c12; }
-.service-card.priority-baixa h3 { color: #3498db; }
+.service-card-body {
+    padding: 16px 18px;
+}
 
+.service-field {
+    margin-bottom: 14px;
+}
+
+.service-field:last-child {
+    margin-bottom: 0;
+}
+
+.service-field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #8a94a6;
+    margin-bottom: 4px;
+}
+
+.service-field-value {
+    margin: 0;
+    color: #444;
+    font-size: 13.5px;
+    line-height: 1.6;
+    white-space: pre-line;
+    overflow-wrap: break-word;
+}
+
+.service-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 18px;
+    background: #fbfbfd;
+    border-top: 1px solid #eef0f6;
+}
 
 .service-date {
-    color: #999;
+    color: #8a94a6;
     font-size: 12px;
-    margin-top: 10px;
+    margin: 0;
 }
 
 .no-services {
@@ -373,23 +428,23 @@ button {
 
 .service-card-images {
     display: flex;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 14px;
+    margin-top: 16px;
     flex-wrap: wrap;
 }
 
 .service-card-thumbnail {
-    width: 60px;
-    height: 60px;
+    width: 64px;
+    height: 64px;
     object-fit: cover;
-    border-radius: 5px;
+    border-radius: 8px;
     cursor: pointer;
-    border: 2px solid #ddd;
-    transition: transform 0.2s, border-color 0.2s;
+    border: 2px solid #e6e9f0;
+    transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .service-card-thumbnail:hover {
-    transform: scale(1.1);
+    transform: scale(1.08);
     border-color: #667eea;
 }
 

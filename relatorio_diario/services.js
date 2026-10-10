@@ -112,25 +112,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         servicosList.innerHTML = servicosFiltrados.map(s => `
             <div class="service-card priority-${s.prioridade || 'media'}" data-id="${s.id}">
-                <p><strong>Assunto:</strong> ${s.assunto}</p>
-                <p><strong>Prioridade:</strong> 
+                <div class="service-card-header">
+                    <h3>${s.assunto}</h3>
                     <span class="priority-text">${s.prioridade ? s.prioridade.charAt(0).toUpperCase() + s.prioridade.slice(1) : 'Não definida'}</span>
-                </p>
-                <p><strong>Descrição:</strong> ${s.descricao}</p>
-                <p><strong>Conclusão:</strong> ${s.conclusao}</p>
-                ${s.imagens.length > 0 ? `
-                    <div class="service-card-images">
-                        ${s.imagens.map(imgData => `
-                            <div class="thumbnail-container">
-                                <img src="${imgData.src || imgData}" alt="Miniatura" class="service-card-thumbnail">
-                                ${imgData.caption ? `<p class="thumbnail-caption">${imgData.caption}</p>` : ''}
-                            </div>
-                        `).join('')}
-                    </div>` : ''}
-                <div class="service-date">Registrado em: ${s.data}</div>
-                <div class="service-card-actions">
-                    <button class="btn-edit" data-id="${s.id}">✏️ Editar</button>
-                    <button class="btn-delete" data-id="${s.id}">🗑️ Excluir</button>
+                </div>
+                <div class="service-card-body">
+                    <div class="service-field">
+                        <span class="service-field-label">Descrição</span>
+                        <p class="service-field-value">${s.descricao}</p>
+                    </div>
+                    <div class="service-field">
+                        <span class="service-field-label">Conclusão</span>
+                        <p class="service-field-value">${s.conclusao}</p>
+                    </div>
+                    ${s.imagens.length > 0 ? `
+                        <div class="service-card-images">
+                            ${s.imagens.map(imgData => `
+                                <div class="thumbnail-container">
+                                    <img src="${imgData.src || imgData}" alt="Miniatura" class="service-card-thumbnail">
+                                    ${imgData.caption ? `<p class="thumbnail-caption">${imgData.caption}</p>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>` : ''}
+                </div>
+                <div class="service-card-footer">
+                    <span class="service-date">🕓 Registrado em: ${s.data}</span>
+                    <div class="service-card-actions">
+                        <button class="btn-edit" data-id="${s.id}">✏️ Editar</button>
+                        <button class="btn-delete" data-id="${s.id}">🗑️ Excluir</button>
+                    </div>
                 </div>
             </div>
         `).join('');
