@@ -501,15 +501,46 @@ button {
 }
 
 @media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+
     .content {
         padding: 10px;
+    }
+
+    .header h1 {
+        font-size: 16px;
     }
 
     .button-group {
         flex-direction: row;
     }
 
-    button,.btn-view-all, .btn-back {
+    .button-group > button,
+    .button-group > a {
         width: 100%;
+    }
+
+    .service-card-header {
+        flex-wrap: wrap;
+    }
+
+    .service-card-header h3 {
+        font-size: 15px;
+    }
+
+    .service-card-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .service-card-actions {
+        width: 100%;
+    }
+
+    .service-card-actions button {
+        flex: 1;
+        width: auto;
     }
 }

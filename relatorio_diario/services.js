@@ -372,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 y += alturaLinha;
-            }
+             }
         };
 
         // Mede a altura de um campo (rótulo + texto), igual ao desenho de escreverCampo
