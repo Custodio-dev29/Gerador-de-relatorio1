@@ -130,7 +130,7 @@ input[type="file"] {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 64px;
+    width: 100%;
 }
 
 .thumbnail-caption {
@@ -427,15 +427,16 @@ button {
 }
 
 .service-card-images {
-    display: flex;
-    gap: 14px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
     margin-top: 16px;
-    flex-wrap: wrap;
 }
 
 .service-card-thumbnail {
-    width: 64px;
-    height: 64px;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     object-fit: cover;
     border-radius: 8px;
     cursor: pointer;

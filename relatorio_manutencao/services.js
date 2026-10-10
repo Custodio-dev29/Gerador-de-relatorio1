@@ -247,6 +247,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const contentWidth = pageWidth - 40;
         const footerLimit = pageHeight - 20;
 
+        // Configuração da grade de imagens: 3 por linha, mantendo a proporção original
+        const gapImagem = 4;
+        const imagensPorLinha = 3;
+        const larguraImagem = (contentWidth - (imagensPorLinha - 1) * gapImagem) / imagensPorLinha;
+        const alturaMaximaImagem = 90;
+        const cacheAspecto = new Map();
+        const dimensoesImagem = (src) => {
+            if (cacheAspecto.has(src)) return cacheAspecto.get(src);
+            let proporcao = 1; // altura / largura
+            try {
+                const props = doc.getImageProperties(src);
+                if (props && props.width && props.height) {
+                    proporcao = props.height / props.width;
+                }
+            } catch (e) {
+                proporcao = 1;
+            }
+            let w = larguraImagem;
+            let h = larguraImagem * proporcao;
+            if (h > alturaMaximaImagem) {
+                h = alturaMaximaImagem;
+                w = h / proporcao;
+            }
+            const dim = { w, h };
+            cacheAspecto.set(src, dim);
+            return dim;
+        };
+
         // Cria uma nova página com cabeçalho sempre que o conteúdo ultrapassar a margem
         const garantirEspaco = (alturaNecessaria) => {
             if (y + alturaNecessaria > footerLimit) {
@@ -292,12 +320,8 @@ document.addEventListener('DOMContentLoaded', () => {
             y += 2;
         };
 
-        // Desenha a grade de imagens quebrando linha a linha entre páginas
+        // Desenha a grade de imagens (3 por linha) quebrando linha a linha entre páginas
         const desenharImagens = (imagens) => {
-            const imgWidth = 40;
-            const imgHeight = 40;
-            const gap = 4;
-            const imagesPerRow = 4;
             const captionFontSize = 7;
             const captionLineHeight = 3.2;
             const captionGap = 3;
@@ -311,20 +335,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let i = 0;
             while (i < imagens.length) {
-                const qtdNaLinha = Math.min(imagesPerRow, imagens.length - i);
+                const qtdNaLinha = Math.min(imagensPorLinha, imagens.length - i);
 
-                // Pré-calcula as linhas de legenda de cada imagem da linha
+                // Pré-calcula dimensões e legendas de cada imagem da linha
+                const dimensoesPorImagem = [];
                 const legendasPorImagem = [];
+                let maiorAlturaImagem = 0;
                 let maxLinhasLegenda = 0;
                 for (let coluna = 0; coluna < qtdNaLinha; coluna++) {
                     const item = imagens[i + coluna];
-                    const legenda = (item && typeof item === 'object' && item.caption) ? String(item.caption) : '';
+                    const currentImg = typeof item === 'string' ? { src: item, caption: '' } : item;
+                    const dim = dimensoesImagem(currentImg.src);
+                    dimensoesPorImagem.push(dim);
+                    maiorAlturaImagem = Math.max(maiorAlturaImagem, dim.h);
+
+                    const legenda = (currentImg && currentImg.caption) ? String(currentImg.caption) : '';
                     let linhas = [];
                     if (legenda.trim()) {
                         doc.setFontSize(captionFontSize);
                         doc.setFont(undefined, 'normal');
                         linhas = legenda.split('\n').reduce((acc, paragrafo) => {
-                            const quebradas = doc.splitTextToSize(paragrafo, imgWidth);
+                            const quebradas = doc.splitTextToSize(paragrafo, larguraImagem);
                             return acc.concat(quebradas.length ? quebradas : ['']);
                         }, []);
                     }
@@ -335,26 +366,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const blocoLegenda = maxLinhasLegenda > 0
                     ? captionGap + maxLinhasLegenda * captionLineHeight + 3
                     : 0;
-                const alturaLinha = imgHeight + Math.max(14, blocoLegenda);
+                const alturaLinha = maiorAlturaImagem + Math.max(14, blocoLegenda);
 
                 garantirEspaco(alturaLinha);
 
                 for (let coluna = 0; coluna < qtdNaLinha; coluna++, i++) {
                     const imgData = imagens[i];
                     const currentImg = typeof imgData === 'string' ? { src: imgData, caption: '' } : imgData;
-                    const currentX = contentX + coluna * (imgWidth + gap);
+                    const dim = dimensoesPorImagem[coluna];
+                    const colunaX = contentX + coluna * (larguraImagem + gapImagem);
+                    const imageX = colunaX + (larguraImagem - dim.w) / 2;
 
                     doc.setDrawColor(secondaryColor);
                     doc.setLineWidth(0.1);
-                    doc.rect(currentX, y, imgWidth, imgHeight);
+                    doc.rect(imageX, y, dim.w, dim.h);
 
                     try {
-                        doc.addImage(currentImg.src, undefined, currentX, y, imgWidth, imgHeight);
+                        doc.addImage(currentImg.src, undefined, imageX, y, dim.w, dim.h);
                     } catch (e) {
                         console.error("Erro ao adicionar imagem ao PDF:", e);
                         doc.setFontSize(8);
                         doc.setTextColor(secondaryColor);
-                        doc.text("Erro", currentX + imgWidth / 2, y + imgHeight / 2, { align: 'center' });
+                        doc.text("Erro", imageX + dim.w / 2, y + dim.h / 2, { align: 'center' });
                     }
 
                     const linhasLegenda = legendasPorImagem[coluna];
@@ -362,16 +395,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         doc.setFontSize(captionFontSize);
                         doc.setFont(undefined, 'normal');
                         doc.setTextColor(secondaryColor);
-                        let legendaY = y + imgHeight + captionGap;
+                        let legendaY = y + maiorAlturaImagem + captionGap;
                         linhasLegenda.forEach(linha => {
-                            doc.text(linha, currentX, legendaY);
+                            doc.text(linha, colunaX, legendaY);
                             legendaY += captionLineHeight;
                         });
                     }
                 }
 
                 y += alturaLinha;
-            }
+             }
         };
 
         // Mede a altura de um campo (rótulo + texto), igual ao desenho de escreverCampo
@@ -394,9 +427,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Mede a altura do bloco de imagens, igual ao desenho de desenharImagens
         const medirImagens = (imagens) => {
-            const imgWidth = 40;
-            const imgHeight = 40;
-            const imagesPerRow = 4;
             const captionFontSize = 7;
             const captionLineHeight = 3.2;
             const captionGap = 3;
@@ -404,16 +434,21 @@ document.addEventListener('DOMContentLoaded', () => {
             let altura = 6; // rótulo "Imagens:"
             let i = 0;
             while (i < imagens.length) {
-                const qtdNaLinha = Math.min(imagesPerRow, imagens.length - i);
+                const qtdNaLinha = Math.min(imagensPorLinha, imagens.length - i);
+                let maiorAlturaImagem = 0;
                 let maxLinhasLegenda = 0;
                 for (let coluna = 0; coluna < qtdNaLinha; coluna++) {
                     const item = imagens[i + coluna];
-                    const legenda = (item && typeof item === 'object' && item.caption) ? String(item.caption) : '';
+                    const currentImg = typeof item === 'string' ? { src: item, caption: '' } : item;
+                    const dim = dimensoesImagem(currentImg.src);
+                    maiorAlturaImagem = Math.max(maiorAlturaImagem, dim.h);
+
+                    const legenda = (currentImg && currentImg.caption) ? String(currentImg.caption) : '';
                     if (legenda.trim()) {
                         doc.setFontSize(captionFontSize);
                         doc.setFont(undefined, 'normal');
                         const linhas = legenda.split('\n').reduce((acc, paragrafo) => {
-                            const quebradas = doc.splitTextToSize(paragrafo, imgWidth);
+                            const quebradas = doc.splitTextToSize(paragrafo, larguraImagem);
                             return acc.concat(quebradas.length ? quebradas : ['']);
                         }, []);
                         maxLinhasLegenda = Math.max(maxLinhasLegenda, linhas.length);
@@ -422,7 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const blocoLegenda = maxLinhasLegenda > 0
                     ? captionGap + maxLinhasLegenda * captionLineHeight + 3
                     : 0;
-                altura += imgHeight + Math.max(14, blocoLegenda);
+                altura += maiorAlturaImagem + Math.max(14, blocoLegenda);
                 i += qtdNaLinha;
             }
             return altura;
