@@ -15,10 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ESTADO DA APLICAÇÃO ---
     const STORAGE_KEY = 'servicosManutencao';
-    let servicos = carregarServicos();
+    let servicos = [];
 
     // --- FUNÇÕES DE INICIALIZAÇÃO ---
-    function init() {
+    async function init() {
+        servicos = await carregarServicos();
         configurarEventListeners();
         atualizarOpcoesSetor();
         renderizarServicos();
@@ -129,14 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(`Setores cadastrados (${setores.length}):\n\n${lista}`);
     }
 
-    // --- GERENCIAMENTO DE ESTADO (LocalStorage) ---
+    // --- GERENCIAMENTO DE ESTADO (IndexedDB) ---
     function carregarServicos() {
-        const servicosSalvos = localStorage.getItem(STORAGE_KEY);
-        return servicosSalvos ? JSON.parse(servicosSalvos) : [];
+        return window.RelatorioStorage.carregar(STORAGE_KEY);
     }
 
     function salvarServicos() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(servicos));
+        return window.RelatorioStorage.salvar(STORAGE_KEY, servicos);
     }
 
     // --- LÓGICA DE SERVIÇOS (CRUD) ---
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (confirm(`Tem certeza que deseja excluir TODOS os ${servicos.length} serviços registrados? Esta ação não pode ser desfeita.`)) {
             servicos = []; // Limpa o array de serviços
-            salvarServicos(); // Atualiza o localStorage com o array vazio
+            salvarServicos(); // Atualiza o armazenamento com o array vazio
             renderizarServicos(); // Atualiza a interface
         }
     }
@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LÓGICA DE PDF ---
-    function exportarParaPDF() {
+    async function exportarParaPDF() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
@@ -306,33 +306,57 @@ document.addEventListener('DOMContentLoaded', () => {
         const contentWidth = pageWidth - 40;
         const footerLimit = pageHeight - 20;
 
-        // Configuração da grade de imagens: 3 por linha, mantendo a proporção original
+        // Configuração da grade de imagens: 3 por linha, todas no mesmo tamanho fixo
         const gapImagem = 4;
         const imagensPorLinha = 3;
         const larguraImagem = (contentWidth - (imagensPorLinha - 1) * gapImagem) / imagensPorLinha;
-        const alturaMaximaImagem = 90;
-        const cacheAspecto = new Map();
-        const dimensoesImagem = (src) => {
-            if (cacheAspecto.has(src)) return cacheAspecto.get(src);
-            let proporcao = 1; // altura / largura
-            try {
-                const props = doc.getImageProperties(src);
-                if (props && props.width && props.height) {
-                    proporcao = props.height / props.width;
-                }
-            } catch (e) {
-                proporcao = 1;
-            }
-            let w = larguraImagem;
-            let h = larguraImagem * proporcao;
-            if (h > alturaMaximaImagem) {
-                h = alturaMaximaImagem;
-                w = h / proporcao;
-            }
-            const dim = { w, h };
-            cacheAspecto.set(src, dim);
-            return dim;
+        const alturaImagem = 40;
+        const dimensaoImagem = { w: larguraImagem, h: alturaImagem };
+
+        // Recorta cada imagem (corte central) para o formato fixo da grade,
+        // garantindo tamanhos iguais no PDF sem distorcer a proporção
+        const cacheImagemCortada = new Map();
+        const prepararImagemCortada = (src) => {
+            if (!src || cacheImagemCortada.has(src)) return Promise.resolve(cacheImagemCortada.get(src) || src);
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.round(dimensaoImagem.w * 10);
+                        canvas.height = Math.round(dimensaoImagem.h * 10);
+                        const ctx = canvas.getContext('2d');
+                        const escala = Math.max(canvas.width / img.width, canvas.height / img.height);
+                        const corteW = canvas.width / escala;
+                        const corteH = canvas.height / escala;
+                        const corteX = (img.width - corteW) / 2;
+                        const corteY = (img.height - corteH) / 2;
+                        ctx.drawImage(img, corteX, corteY, corteW, corteH, 0, 0, canvas.width, canvas.height);
+                        const cortada = canvas.toDataURL('image/jpeg', 0.85);
+                        cacheImagemCortada.set(src, cortada);
+                        resolve(cortada);
+                    } catch (e) {
+                        cacheImagemCortada.set(src, src);
+                        resolve(src);
+                    }
+                };
+                img.onerror = () => {
+                    cacheImagemCortada.set(src, src);
+                    resolve(src);
+                };
+                img.src = src;
+            });
         };
+
+        // Pré-recorta todas as imagens para o mesmo formato antes de desenhar
+        const todosSrcs = new Set();
+        servicosParaExportar.forEach((servico) => {
+            (servico.imagens || []).forEach((img) => {
+                const src = typeof img === 'string' ? img : img.src;
+                if (src) todosSrcs.add(src);
+            });
+        });
+        await Promise.all(Array.from(todosSrcs, prepararImagemCortada));
 
         // Cria uma nova página com cabeçalho sempre que o conteúdo ultrapassar a margem
         const garantirEspaco = (alturaNecessaria) => {
@@ -396,17 +420,12 @@ document.addEventListener('DOMContentLoaded', () => {
             while (i < imagens.length) {
                 const qtdNaLinha = Math.min(imagensPorLinha, imagens.length - i);
 
-                // Pré-calcula dimensões e legendas de cada imagem da linha
-                const dimensoesPorImagem = [];
+                // Pré-calcula as legendas de cada imagem da linha (dimensões já fixas)
                 const legendasPorImagem = [];
-                let maiorAlturaImagem = 0;
                 let maxLinhasLegenda = 0;
                 for (let coluna = 0; coluna < qtdNaLinha; coluna++) {
                     const item = imagens[i + coluna];
                     const currentImg = typeof item === 'string' ? { src: item, caption: '' } : item;
-                    const dim = dimensoesImagem(currentImg.src);
-                    dimensoesPorImagem.push(dim);
-                    maiorAlturaImagem = Math.max(maiorAlturaImagem, dim.h);
 
                     const legenda = (currentImg && currentImg.caption) ? String(currentImg.caption) : '';
                     let linhas = [];
@@ -425,36 +444,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 const blocoLegenda = maxLinhasLegenda > 0
                     ? captionGap + maxLinhasLegenda * captionLineHeight + 3
                     : 0;
-                const alturaLinha = maiorAlturaImagem + Math.max(14, blocoLegenda);
+                const alturaLinha = dimensaoImagem.h + Math.max(14, blocoLegenda);
 
                 garantirEspaco(alturaLinha);
 
                 for (let coluna = 0; coluna < qtdNaLinha; coluna++, i++) {
                     const imgData = imagens[i];
                     const currentImg = typeof imgData === 'string' ? { src: imgData, caption: '' } : imgData;
-                    const dim = dimensoesPorImagem[coluna];
                     const colunaX = contentX + coluna * (larguraImagem + gapImagem);
-                    const imageX = colunaX + (larguraImagem - dim.w) / 2;
 
                     doc.setDrawColor(secondaryColor);
                     doc.setLineWidth(0.1);
-                    doc.rect(imageX, y, dim.w, dim.h);
+                    doc.rect(colunaX, y, dimensaoImagem.w, dimensaoImagem.h);
 
                     try {
-                        doc.addImage(currentImg.src, undefined, imageX, y, dim.w, dim.h);
+                        const srcCortado = cacheImagemCortada.get(currentImg.src) || currentImg.src;
+                        doc.addImage(srcCortado, undefined, colunaX, y, dimensaoImagem.w, dimensaoImagem.h);
                     } catch (e) {
                         console.error("Erro ao adicionar imagem ao PDF:", e);
                         doc.setFontSize(8);
                         doc.setTextColor(secondaryColor);
-                        doc.text("Erro", imageX + dim.w / 2, y + dim.h / 2, { align: 'center' });
+                        doc.text("Erro", colunaX + dimensaoImagem.w / 2, y + dimensaoImagem.h / 2, { align: 'center' });
                     }
 
                     const linhasLegenda = legendasPorImagem[coluna];
                     if (linhasLegenda && linhasLegenda.length) {
                         doc.setFontSize(captionFontSize);
                         doc.setFont(undefined, 'normal');
-                        doc.setTextColor(secondaryColor);
-                        let legendaY = y + maiorAlturaImagem + captionGap;
+                        doc.setTextColor(textColor);
+                        let legendaY = y + dimensaoImagem.h + captionGap;
                         linhasLegenda.forEach(linha => {
                             doc.text(linha, colunaX, legendaY);
                             legendaY += captionLineHeight;
@@ -494,13 +512,10 @@ document.addEventListener('DOMContentLoaded', () => {
             let i = 0;
             while (i < imagens.length) {
                 const qtdNaLinha = Math.min(imagensPorLinha, imagens.length - i);
-                let maiorAlturaImagem = 0;
                 let maxLinhasLegenda = 0;
                 for (let coluna = 0; coluna < qtdNaLinha; coluna++) {
                     const item = imagens[i + coluna];
                     const currentImg = typeof item === 'string' ? { src: item, caption: '' } : item;
-                    const dim = dimensoesImagem(currentImg.src);
-                    maiorAlturaImagem = Math.max(maiorAlturaImagem, dim.h);
 
                     const legenda = (currentImg && currentImg.caption) ? String(currentImg.caption) : '';
                     if (legenda.trim()) {
@@ -516,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const blocoLegenda = maxLinhasLegenda > 0
                     ? captionGap + maxLinhasLegenda * captionLineHeight + 3
                     : 0;
-                altura += maiorAlturaImagem + Math.max(14, blocoLegenda);
+                altura += dimensaoImagem.h + Math.max(14, blocoLegenda);
                 i += qtdNaLinha;
             }
             return altura;
@@ -635,17 +650,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function importarDePDF(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+        const arquivos = Array.from(event.target.files || []);
+        if (arquivos.length === 0) return;
 
-        const reader = new FileReader();
-        reader.onload = async (e) => {
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+
+        const lerArquivo = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsArrayBuffer(file);
+        });
+
+        let novosServicos = [];
+        const arquivosComErro = [];
+
+        for (const file of arquivos) {
             try {
-                const pdfjsLib = window['pdfjs-dist/build/pdf'];
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
-
-                const loadingTask = pdfjsLib.getDocument({ data: e.target.result });
-                const pdf = await loadingTask.promise;
+                const buffer = await lerArquivo(file);
+                const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
                 let fullText = '';
 
                 for (let i = 1; i <= pdf.numPages; i++) {
@@ -654,33 +678,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     fullText += textContent.items.map(item => item.str).join(' ');
                 }
 
-                let novosServicos = [];
                 const jsonMatch = fullText.match(/---SERVICOS_JSON_START---(.*?)---SERVICOS_JSON_END---/);
-
                 if (jsonMatch && jsonMatch[1]) {
-                    novosServicos = JSON.parse(jsonMatch[1]);
+                    const extraidos = JSON.parse(jsonMatch[1]);
+                    if (Array.isArray(extraidos)) {
+                        novosServicos = novosServicos.concat(extraidos);
+                    }
                 } else {
-                    alert('Não foi possível encontrar dados de serviço importáveis neste PDF. O arquivo pode ser de uma versão antiga ou não conter um relatório válido.');
-                    return;
+                    arquivosComErro.push(file.name);
                 }
-
-                if (novosServicos.length > 0) {
-                    servicos = [...servicos, ...novosServicos];
-                    salvarServicos();
-                    renderizarServicos();
-                    alert(`${novosServicos.length} serviço(s) importado(s) com sucesso!`);
-                } else {
-                    alert('Nenhum serviço foi encontrado nos dados do PDF.');
-                }
-
             } catch (error) {
-                console.error('Erro ao importar PDF:', error);
-                alert('Falha ao importar o arquivo PDF. O arquivo pode estar corrompido ou em um formato inesperado.');
-            } finally {
-                event.target.value = '';
+                console.error(`Erro ao importar PDF "${file.name}":`, error);
+                arquivosComErro.push(file.name);
             }
-        };
-        reader.readAsArrayBuffer(file);
+        }
+
+        event.target.value = '';
+
+        if (novosServicos.length > 0) {
+            servicos = [...servicos, ...novosServicos];
+            salvarServicos();
+            renderizarServicos();
+            let mensagem = `${novosServicos.length} serviço(s) importado(s) com sucesso de ${arquivos.length} arquivo(s)!`;
+            if (arquivosComErro.length > 0) {
+                mensagem += `\n\nNão foi possível ler: ${arquivosComErro.join(', ')}`;
+            }
+            alert(mensagem);
+        } else {
+            alert('Nenhum serviço foi encontrado nos PDFs selecionados. Os arquivos podem ser de versões antigas ou não conter um relatório válido.');
+        }
     }
 
     // --- INICIA A APLICAÇÃO ---

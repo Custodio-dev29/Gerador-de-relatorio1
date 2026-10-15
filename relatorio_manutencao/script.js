@@ -21,12 +21,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- ESTADO DA APLICAÇÃO ---
     const STORAGE_KEY = 'servicosManutencao';
-    let servicos = carregarServicos();
+    let servicos = [];
     let imagens = [];
     let servicoEmEdicaoIndex = null;
 
     // --- FUNÇÕES DE INICIALIZAÇÃO ---
-    function init() {
+    async function init() {
+        servicos = await carregarServicos();
         configurarDataAtual();
         configurarEventListeners();
         atualizarListaSetores(); // Preenche as sugestões de setores já cadastrados
@@ -81,14 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- GERENCIAMENTO DE ESTADO (LocalStorage) ---
+    // --- GERENCIAMENTO DE ESTADO (IndexedDB) ---
     function carregarServicos() {
-        const servicosSalvos = localStorage.getItem(STORAGE_KEY);
-        return servicosSalvos ? JSON.parse(servicosSalvos) : [];
+        return window.RelatorioStorage.carregar(STORAGE_KEY);
     }
 
     function salvarServicos() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(servicos));
+        return window.RelatorioStorage.salvar(STORAGE_KEY, servicos);
     }
 
     // --- MANIPULAÇÃO DE IMAGENS ---
@@ -177,9 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- LÓGICA DE SERVIÇOS (CRUD) ---
-    function adicionarServico() {
+    async function adicionarServico() {
         if (servicoEmEdicaoIndex !== null) {
-            atualizarServico();
+            await atualizarServico();
             return;
         }
 
@@ -212,12 +212,12 @@ document.addEventListener('DOMContentLoaded', () => {
        
 
         servicos.push(servico);
-        salvarServicos();
+        await salvarServicos();
         limparFormulario();
         alert('Serviço adicionado com sucesso!');
     }
 
-    function atualizarServico() {
+    async function atualizarServico() {
         const servico = servicos[servicoEmEdicaoIndex];
         servico.assunto = assuntoInput.value.trim();
         servico.descricao = descricaoInput.value.trim();
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
         servico.conclusao = conclusaoInput.value.trim();
         servico.imagens = [...imagens];
 
-        salvarServicos();
+        await salvarServicos();
         limparFormulario();
         alert('Serviço atualizado com sucesso!');
         // Redireciona para a lista após salvar
