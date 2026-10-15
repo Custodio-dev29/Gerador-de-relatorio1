@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const assuntoInput = document.getElementById('assunto');
     const descricaoInput = document.getElementById('descricao');
     const prioridadeInput = document.getElementById('prioridade');
+    const setorInput = document.getElementById('setor');
+    const setoresList = document.getElementById('setoresList');
     const conclusaoInput = document.getElementById('conclusao');
     const imageInput = document.getElementById('imageInput');
     const imagePreview = document.getElementById('imagePreview');
@@ -27,7 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function init() {
         configurarDataAtual();
         configurarEventListeners();
+        atualizarListaSetores(); // Preenche as sugestões de setores já cadastrados
         verificarEdicaoURL(); // Verifica se estamos editando um serviço
+    }
+
+    function atualizarListaSetores() {
+        if (!setoresList) return;
+        const setores = new Set();
+        servicos.forEach(s => {
+            if (s.setor && s.setor.trim()) setores.add(s.setor.trim());
+        });
+        setoresList.innerHTML = Array.from(setores)
+            .sort((a, b) => a.localeCompare(b))
+            .map(s => `<option value="${escapeHtml(s)}"></option>`)
+            .join('');
     }
 
     function configurarDataAtual() {
@@ -171,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const assunto = assuntoInput.value.trim();
         const descricao = descricaoInput.value.trim();
         const prioridade = prioridadeInput.value;
+        const setor = setorInput.value.trim();
         const conclusao = conclusaoInput.value.trim();
 
         if (!assunto || !descricao) {
@@ -183,6 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: Date.now(),
             assunto,
             prioridade,
+            setor,
             descricao,
             conclusao,
             imagens: [...imagens],
@@ -205,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         servico.assunto = assuntoInput.value.trim();
         servico.descricao = descricaoInput.value.trim();
         servico.prioridade = prioridadeInput.value;
+        servico.setor = setorInput.value.trim();
         servico.conclusao = conclusaoInput.value.trim();
         servico.imagens = [...imagens];
 
@@ -235,6 +253,7 @@ document.addEventListener('DOMContentLoaded', () => {
         assuntoInput.value = servico.assunto;
         descricaoInput.value = servico.descricao;
         prioridadeInput.value = servico.prioridade || 'media'; // Define 'media' se não houver prioridade
+        setorInput.value = servico.setor || '';
         conclusaoInput.value = servico.conclusao;
         imagens = [...servico.imagens]; // Carrega as imagens do serviço
         renderizarImagens();
@@ -247,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
         assuntoInput.value = '';
         descricaoInput.value = '';
         prioridadeInput.value = 'urgente'; // Reseta para o valor padrão
+        setorInput.value = '';
         conclusaoInput.value = '';
         imagens = [];
         imageInput.value = '';

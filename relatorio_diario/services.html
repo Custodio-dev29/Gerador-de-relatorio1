@@ -28,6 +28,23 @@
                         <option value="">Serviço executado</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="filterSetor">Filtrar por Setor</label>
+                    <select id="filterSetor">
+                        <option value="todos">Todos</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="sortBy">Classificar por</label>
+                    <select id="sortBy">
+                        <option value="prioridade">Prioridade</option>
+                        <option value="setor">Setor</option>
+                        <option value="data">Mais recente</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end; gap: 8px;">
+                    <button id="btnListarSetores" class="btn-view-all" type="button">📋 Listar Setores</button>
+                </div>
             </div>
             <div class="button-group">
                 <a href="index.html" class="btn-back">← Voltar </a>

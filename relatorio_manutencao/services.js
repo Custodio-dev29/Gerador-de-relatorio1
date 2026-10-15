@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const pdfInput = document.getElementById('pdfInput');
     const deleteAllBtn = document.querySelector('.btn-delete-all');
     const filterPriorityInput = document.getElementById('filterPriority');
+    const filterSetorInput = document.getElementById('filterSetor');
+    const sortByInput = document.getElementById('sortBy');
+    const btnListarSetores = document.getElementById('btnListarSetores');
 
     // --- ESTADO DA APLICAÇÃO ---
     const STORAGE_KEY = 'servicosManutencao';
@@ -17,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- FUNÇÕES DE INICIALIZAÇÃO ---
     function init() {
         configurarEventListeners();
+        atualizarOpcoesSetor();
         renderizarServicos();
     }
 
@@ -40,6 +44,89 @@ document.addEventListener('DOMContentLoaded', () => {
         deleteAllBtn.addEventListener('click', excluirTodosServicos);
         // Event listener para o filtro
         filterPriorityInput.addEventListener('change', renderizarServicos);
+        // Event listeners para filtro e classificação por setor
+        if (filterSetorInput) filterSetorInput.addEventListener('change', renderizarServicos);
+        if (sortByInput) sortByInput.addEventListener('change', renderizarServicos);
+        if (btnListarSetores) btnListarSetores.addEventListener('click', mostrarListaSetores);
+    }
+
+    // --- FUNÇÕES AUXILIARES ---
+    function escapeHtml(texto) {
+        return String(texto)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // Lista os setores distintos já cadastrados, em ordem alfabética
+    function obterSetoresUnicos() {
+        const setores = new Set();
+        servicos.forEach(s => {
+            if (s.setor && s.setor.trim()) setores.add(s.setor.trim());
+        });
+        return Array.from(setores).sort((a, b) => a.localeCompare(b));
+    }
+
+    // Atualiza as opções do filtro de setor preservando a seleção atual
+    function atualizarOpcoesSetor() {
+        if (!filterSetorInput) return;
+        const valorAtual = filterSetorInput.value;
+        const opcoes = obterSetoresUnicos()
+            .map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`)
+            .join('');
+        filterSetorInput.innerHTML = `<option value="todos">Todos</option>${opcoes}`;
+        const aindaExiste = Array.from(filterSetorInput.options).some(o => o.value === valorAtual);
+        filterSetorInput.value = aindaExiste ? valorAtual : 'todos';
+    }
+
+    // Aplica os filtros (prioridade e setor) e a classificação (prioridade, setor ou data)
+    function obterServicosProcessados() {
+        const filterPriority = filterPriorityInput.value;
+        const filterSetor = filterSetorInput ? filterSetorInput.value : 'todos';
+        const sortBy = sortByInput ? sortByInput.value : 'prioridade';
+
+        const lista = servicos.filter(servico => {
+            const okPrioridade = filterPriority === 'todos' || servico.prioridade === filterPriority;
+            const okSetor = filterSetor === 'todos' || (servico.setor || '') === filterSetor;
+            return okPrioridade && okSetor;
+        });
+
+        // Ordem de prioridade (Urgente > Média > Baixa)
+        const priorityOrder = { 'urgente': 1, 'media': 2, 'baixa': 3 };
+        const prioridadeDe = (s) => priorityOrder[s.prioridade] || 4;
+
+        lista.sort((a, b) => {
+            if (sortBy === 'setor') {
+                const setorA = (a.setor || '').toLowerCase();
+                const setorB = (b.setor || '').toLowerCase();
+                if (setorA !== setorB) return setorA.localeCompare(setorB);
+            } else if (sortBy === 'data') {
+                return b.id - a.id; // mais recente primeiro
+            }
+
+            // Padrão: prioridade; empate resolvido pelo mais recente
+            if (prioridadeDe(a) !== prioridadeDe(b)) {
+                return prioridadeDe(a) - prioridadeDe(b);
+            }
+            return b.id - a.id;
+        });
+
+        return lista;
+    }
+
+    // Lista os setores cadastrados com a contagem de serviços de cada um
+    function mostrarListaSetores() {
+        const setores = obterSetoresUnicos();
+        if (setores.length === 0) {
+            alert('Nenhum setor cadastrado ainda.');
+            return;
+        }
+        const lista = setores.map(s => {
+            const total = servicos.filter(x => (x.setor || '').trim() === s).length;
+            return `- ${s} (${total} serviço${total !== 1 ? 's' : ''})`;
+        }).join('\n');
+        alert(`Setores cadastrados (${setores.length}):\n\n${lista}`);
     }
 
     // --- GERENCIAMENTO DE ESTADO (LocalStorage) ---
@@ -81,25 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderizarServicos() {
-        const filterValue = filterPriorityInput.value;
+        atualizarOpcoesSetor();
 
-        let servicosFiltrados = servicos.filter(servico => {
-            if (filterValue === 'todos') return true;
-            return servico.prioridade === filterValue;
-        });
-
-        // Classifica os serviços por prioridade (Urgente > Média > Baixa)
-        const priorityOrder = { 'urgente': 1, 'media': 2, 'baixa': 3 };
-        servicosFiltrados.sort((a, b) => {
-            const prioridadeA = priorityOrder[a.prioridade] || 4; // Usa 4 para prioridades não definidas
-            const prioridadeB = priorityOrder[b.prioridade] || 4;
-
-            if (prioridadeA !== prioridadeB) {
-                return prioridadeA - prioridadeB;
-            }
-            // Se a prioridade for a mesma, classifica pelo mais recente (ID maior)
-            return b.id - a.id;
-        });
+        const servicosFiltrados = obterServicosProcessados();
 
         if (servicosFiltrados.length === 0) {
             if (servicos.length === 0) {
@@ -117,6 +188,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="priority-text">${s.prioridade ? s.prioridade.charAt(0).toUpperCase() + s.prioridade.slice(1) : 'Não definida'}</span>
                 </div>
                 <div class="service-card-body">
+                    ${s.setor ? `
+                    <div class="service-field">
+                        <span class="service-field-label">Setor</span>
+                        <p class="service-field-value">${s.setor}</p>
+                    </div>` : ''}
                     <div class="service-field">
                         <span class="service-field-label">Descrição</span>
                         <p class="service-field-value">${s.descricao}</p>
@@ -220,25 +296,8 @@ document.addEventListener('DOMContentLoaded', () => {
         addHeader();
         let y = 35;
 
-        // Pega o valor do filtro atual
-        const filterValue = filterPriorityInput.value;
-
-        // Filtra os serviços conforme o filtro selecionado
-        let servicosParaExportar = servicos.filter(servico => {
-            if (filterValue === 'todos') return true;
-            return servico.prioridade === filterValue;
-        });
-
-        // Ordena os serviços filtrados pela mesma regra da tela
-        const priorityOrder = { 'urgente': 1, 'media': 2, 'baixa': 3 };
-        servicosParaExportar.sort((a, b) => {
-            const prioridadeA = priorityOrder[a.prioridade] || 4;
-            const prioridadeB = priorityOrder[b.prioridade] || 4;
-            if (prioridadeA !== prioridadeB) {
-                return prioridadeA - prioridadeB;
-            }
-            return b.id - a.id;
-        });
+        // Filtra e ordena os serviços conforme os controles da tela (prioridade, setor e classificação)
+        const servicosParaExportar = obterServicosProcessados();
 
         // Contexto de layout e paginação
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -466,6 +525,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Mede a altura total de um serviço para decidir a quebra de página
         const medirServico = (servico) => {
             let altura = 20; // cabeçalho (assunto + divisor) + linha de prioridade
+            if (servico.setor && servico.setor.trim()) {
+                altura += 8; // linha do setor
+            }
             altura += medirCampo("Descrição:", servico.descricao);
             altura += medirCampo("Conclusão:", servico.conclusao);
             if (servico.imagens && servico.imagens.length > 0) {
@@ -534,6 +596,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             y += 8; // Espaçamento após a prioridade
             // --- Fim da seção de Prioridade ---
+
+            if (servico.setor && servico.setor.trim()) {
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(textColor);
+                doc.text("Setor:", contentX, y);
+                doc.setFont(undefined, 'normal');
+                doc.text(servico.setor, contentX + doc.getTextWidth("Setor:") + 2, y);
+                y += 8;
+            }
 
             escreverCampo("Descrição:", servico.descricao);
             escreverCampo("Conclusão:", servico.conclusao);

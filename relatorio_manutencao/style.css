@@ -36,6 +36,19 @@ body {
     padding: 30px;
 }
 
+.service-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+}
+
+.service-controls .form-group {
+    flex: 1 1 180px;
+    margin-bottom: 0;
+}
+
 .form-group {
     margin-bottom: 20px;
 }
